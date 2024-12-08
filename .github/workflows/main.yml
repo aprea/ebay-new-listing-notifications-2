@@ -1,0 +1,192 @@
+name: eBay New Listings Tracker
+
+on:
+  schedule:
+    # Runs every 5 minutes from 6 PM to midnight AEDT
+    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 18-23 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-new-listings:
+    runs-on: ubuntu-latest
+    # Limit total job runtime to 5 minutes
+    timeout-minutes: 5
+    
+    steps:
+    - name: Check Time Window
+      # Check if current time is between 6 PM and midnight AEDT
+      run: |
+        current_hour=$(TZ='Australia/Sydney' date +%H)
+        if [ $current_hour -lt 18 ] || [ $current_hour -ge 24 ]; then
+          echo "Outside of target time window (6 PM to midnight AEDT)"
+          exit 78  # Neutral exit code to skip the job
+        fi
+    
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install dependencies
+      run: |
+        mkdir -p ebay-tracker
+        cd ebay-tracker
+        npm init -y
+        npm install axios @octokit/rest
+    
+    - name: Check eBay Listings
+      id: ebay-check
+      env:
+        EBAY_API_KEY: ${{ secrets.EBAY_API_KEY }}
+        SELLER_USERNAME: ${{ secrets.SELLER_USERNAME }}
+        PROCESSED_LISTING_IDS: ${{ secrets.PROCESSED_LISTING_IDS }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        cd ebay-tracker
+        cat > index.js << 'EOF'
+const axios = require('axios');
+const { Octokit } = require('@octokit/rest');
+const fs = require('fs');
+
+class eBayListingTracker {
+  constructor() {
+    this.apiKey = process.env.EBAY_API_KEY;
+    this.sellerUsername = process.env.SELLER_USERNAME;
+    this.processedListingIds = this.getProcessedListingIds();
+    this.octokit = new Octokit({ auth: process.env.GH_TOKEN });
+    this.owner = process.env.GITHUB_REPOSITORY.split('/')[0];
+    this.repo = process.env.GITHUB_REPOSITORY.split('/')[1];
+  }
+
+  getProcessedListingIds() {
+    const processedIds = process.env.PROCESSED_LISTING_IDS || '';
+    return processedIds.split(',').filter(id => id.trim() !== '');
+  }
+
+  async getEbayListings() {
+    try {
+      const response = await axios.get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        params: {
+          q: `seller:${this.sellerUsername}`,
+          limit: 50,
+          sort: 'creationTime DESC'
+        }
+      });
+
+      return response.data.itemSummaries || [];
+    } catch (error) {
+      console.error('Error fetching eBay listings:', error.message);
+      return [];
+    }
+  }
+
+  async updateProcessedListingIds(newListingIds) {
+    const updatedIds = Array.from(new Set([
+      ...this.processedListingIds, 
+      ...newListingIds
+    ])).slice(-500).join(',');
+
+    try {
+      await this.octokit.actions.updateRepoSecret({
+        owner: this.owner,
+        repo: this.repo,
+        secret_name: 'PROCESSED_LISTING_IDS',
+        encrypted_value: Buffer.from(updatedIds).toString('base64')
+      });
+      console.log('Successfully updated processed listing IDs');
+    } catch (error) {
+      console.error('Error updating processed listing IDs:', error.message);
+    }
+  }
+
+  async findAndNotifyNewListings() {
+    if (!this.apiKey || !this.sellerUsername) {
+      console.error('Missing required environment variables');
+      return { newListings: [], listingDetails: '' };
+    }
+
+    const currentListings = await this.getEbayListings();
+
+    const newListings = currentListings.filter(
+      listing => !this.processedListingIds.includes(listing.itemId)
+    );
+
+    // Prepare listing details for output
+    const listingDetails = newListings.map(listing => 
+      `Title: ${listing.title}\nURL: ${listing.itemWebUrl}`
+    ).join('\n\n');
+
+    // Update processed listing IDs if new listings found
+    if (newListings.length > 0) {
+      await this.updateProcessedListingIds(
+        newListings.map(listing => listing.itemId)
+      );
+    }
+
+    console.log(`Processed ${newListings.length} new listings`);
+    
+    return { 
+      newListings, 
+      listingDetails: listingDetails || 'No new listings found' 
+    };
+  }
+}
+
+// Run the tracker
+const tracker = new eBayListingTracker();
+tracker.findAndNotifyNewListings()
+  .then(result => {
+    // Write result to a file for GitHub Actions to read
+    fs.writeFileSync('listing_results.json', JSON.stringify(result));
+    process.exit(result.newListings.length > 0 ? 0 : 78);
+  })
+  .catch(error => {
+    console.error(error);
+    process.exit(1);
+  });
+EOF
+
+        node index.js
+      continue-on-error: true
+      
+    - name: Read Listing Results
+      id: read-results
+      if: ${{ steps.ebay-check.outcome == 'success' }}
+      run: |
+        result=$(cat ebay-tracker/listing_results.json)
+        echo "result=${result}" >> $GITHUB_OUTPUT
+
+    - name: Send Mail
+      # Only send email if previous step found new listings
+      if: ${{ steps.read-results.outputs.result != '' }}
+      uses: dawidd6/action-send-mail@v4
+      with:
+        server_address: smtp.gmail.com
+        server_port: 465
+        secure: true
+        username: ${{secrets.MAIL_USERNAME}}
+        password: ${{secrets.MAIL_PASSWORD}}
+        subject: New eBay Listings Found
+        to: ${{secrets.NOTIFICATION_EMAIL}}
+        from: GitHub Actions <${{secrets.MAIL_USERNAME}}>
+        body: |
+          New eBay Listings Detected:
+
+          ${{ fromJson(steps.read-results.outputs.result).listingDetails }}
+        
+        # Optional priority
+        priority: high
+
+# Optimization to reduce GitHub Actions resources
+env:
+  # Reduce verbosity of npm logs
+  NODE_OPTIONS: '--no-warnings'
+  # Disable colored output to reduce log size
+  NO_COLOR: '1'

@@ -1,5 +1,5 @@
 import EbayAuthToken from 'ebay-oauth-nodejs-client';
-import { get } from 'axios';
+import axios from 'axios';
 import { writeFileSync } from 'fs';
 import { Octokit } from '@octokit/rest';
 
@@ -36,20 +36,25 @@ class eBayListingTracker {
 
   async getEbayListings(accessToken) {
     try {
-      const response = await get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
+      const response = await axios.get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_AU',
         },
         params: {
-          q: `seller:${this.sellerUsername}`,
+          q: '2024',
+          filter: `sellers:{${process.env.SELLER_USERNAME}}`,
           limit: 50,
-          sort: 'creationTime DESC'
+          sort: 'newlyListed'
         }
       });
 
+      console.dir(response,{depth:null});
+
       return response.data.itemSummaries || [];
     } catch (error) {
+      console.log(error);
       console.error('Error fetching eBay listings:', error.message);
       return [];
     }

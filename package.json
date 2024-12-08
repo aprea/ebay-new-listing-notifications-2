@@ -2,6 +2,7 @@
   "name": "ebay-new-listing-notifications",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -15,5 +16,10 @@
     "url": "https://github.com/aprea/ebay-new-listing-notifications/issues"
   },
   "homepage": "https://github.com/aprea/ebay-new-listing-notifications#readme",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "@octokit/rest": "^21.0.2",
+    "axios": "^1.7.9",
+    "ebay-oauth-nodejs-client": "^1.2.2"
+  }
 }

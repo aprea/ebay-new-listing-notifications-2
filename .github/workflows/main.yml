@@ -32,7 +32,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm install axios @octokit/rest ebay-oauth-nodejs-client
+        npm install
     
     - name: Check eBay Listings
       id: ebay-check

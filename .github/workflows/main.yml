@@ -3,7 +3,7 @@ name: eBay New Listings Tracker
 on:
   schedule:
     # Runs every 5 minutes from 6 PM to midnight AEDT
-    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 18-23 * * *'
+    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 6-14 * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,14 +13,14 @@ jobs:
     timeout-minutes: 5
     
     steps:
-    # - name: Check Time Window
-    #   # Check if current time is between 6 PM and midnight AEDT
-    #   run: |
-    #     current_hour=$(TZ='Australia/Sydney' date +%H)
-    #     if [ $current_hour -lt 18 ] || [ $current_hour -ge 24 ]; then
-    #       echo "Outside of target time window (6 PM to midnight AEDT)"
-    #       exit 78  # Neutral exit code to skip the job
-    #     fi
+    - name: Check Time Window
+      # Check if current time is between 6 PM and midnight AEDT
+      run: |
+        current_hour=$(TZ='Australia/Sydney' date +%H)
+        if [ $current_hour -lt 18 ] || [ $current_hour -ge 24 ]; then
+          echo "Outside of target time window (6 PM to midnight)"
+          exit 78  # Neutral exit code to skip the job
+        fi
     
     - name: Checkout repository
       uses: actions/checkout@v4

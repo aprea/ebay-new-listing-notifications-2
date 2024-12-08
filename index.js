@@ -43,7 +43,7 @@ class eBayListingTracker {
           'X-EBAY-C-MARKETPLACE-ID': 'EBAY_AU',
         },
         params: {
-          q: '2024',
+          q: 'pokemon',
           filter: `sellers:{${process.env.SELLER_USERNAME}}`,
           limit: 50,
           sort: 'newlyListed'

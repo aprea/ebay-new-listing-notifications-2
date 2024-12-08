@@ -1,15 +1,14 @@
-const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const axios = require('axios');
-const fs = require('fs');
-const { Octokit } = require('@octokit/rest');
+import EbayAuthToken from 'ebay-oauth-nodejs-client';
+import { get } from 'axios';
+import { writeFileSync } from 'fs';
+import { Octokit } from '@octokit/rest';
 
 class eBayListingTracker {
   constructor() {
     // Initialize eBay OAuth client
     this.ebayAuthToken = new EbayAuthToken({
       clientId: process.env.EBAY_CLIENT_ID,
-      clientSecret: process.env.EBAY_CLIENT_SECRET,
-      redirectUri: process.env.EBAY_REDIRECT_URI
+      clientSecret: process.env.EBAY_CLIENT_SECRET
     });
 
     // Initialize other properties
@@ -37,7 +36,7 @@ class eBayListingTracker {
 
   async getEbayListings(accessToken) {
     try {
-      const response = await axios.get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
+      const response = await get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
@@ -124,7 +123,7 @@ const tracker = new eBayListingTracker();
 tracker.findAndNotifyNewListings()
   .then(result => {
     // Write result to a file for GitHub Actions to read
-    fs.writeFileSync('listing_results.json', JSON.stringify(result));
+    writeFileSync('listing_results.json', JSON.stringify(result));
     process.exit(result.newListings.length > 0 ? 0 : 78);
   })
   .catch(error => {

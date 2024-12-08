@@ -50,11 +50,8 @@ class eBayListingTracker {
         }
       });
 
-      console.dir(response,{depth:null});
-
       return response.data.itemSummaries || [];
     } catch (error) {
-      console.log(error);
       console.error('Error fetching eBay listings:', error.message);
       return [];
     }

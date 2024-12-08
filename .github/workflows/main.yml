@@ -32,12 +32,14 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm install axios @octokit/rest
+        npm install axios @octokit/rest ebay-oauth-nodejs-client
     
     - name: Check eBay Listings
       id: ebay-check
       env:
-        EBAY_API_KEY: ${{ secrets.EBAY_API_KEY }}
+        EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+        EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+        EBAY_REDIRECT_URI: ${{ secrets.EBAY_REDIRECT_URI }}
         SELLER_USERNAME: ${{ secrets.SELLER_USERNAME }}
         PROCESSED_LISTING_IDS: ${{ secrets.PROCESSED_LISTING_IDS }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,10 +1,18 @@
+const EbayAuthToken = require('ebay-oauth-nodejs-client');
 const axios = require('axios');
-const { Octokit } = require('@octokit/rest');
 const fs = require('fs');
+const { Octokit } = require('@octokit/rest');
 
 class eBayListingTracker {
   constructor() {
-    this.apiKey = process.env.EBAY_API_KEY;
+    // Initialize eBay OAuth client
+    this.ebayAuthToken = new EbayAuthToken({
+      clientId: process.env.EBAY_CLIENT_ID,
+      clientSecret: process.env.EBAY_CLIENT_SECRET,
+      redirectUri: process.env.EBAY_REDIRECT_URI
+    });
+
+    // Initialize other properties
     this.sellerUsername = process.env.SELLER_USERNAME;
     this.processedListingIds = this.getProcessedListingIds();
     this.octokit = new Octokit({ auth: process.env.GH_TOKEN });
@@ -17,11 +25,21 @@ class eBayListingTracker {
     return processedIds.split(',').filter(id => id.trim() !== '');
   }
 
-  async getEbayListings() {
+  async getApplicationToken() {
+    try {
+      // Get application token for API access
+      return await this.ebayAuthToken.getApplicationToken('PRODUCTION');
+    } catch (error) {
+      console.error('Error getting application token:', error.message);
+      throw error;
+    }
+  }
+
+  async getEbayListings(accessToken) {
     try {
       const response = await axios.get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
         params: {
@@ -58,35 +76,46 @@ class eBayListingTracker {
   }
 
   async findAndNotifyNewListings() {
-    if (!this.apiKey || !this.sellerUsername) {
+    // Validate required environment variables
+    if (!process.env.EBAY_CLIENT_ID || !process.env.SELLER_USERNAME) {
       console.error('Missing required environment variables');
       return { newListings: [], listingDetails: '' };
     }
 
-    const currentListings = await this.getEbayListings();
+    try {
+      // Get application token
+      const applicationToken = await this.getApplicationToken();
 
-    const newListings = currentListings.filter(
-      listing => !this.processedListingIds.includes(listing.itemId)
-    );
+      // Fetch current listings
+      const currentListings = await this.getEbayListings(applicationToken);
 
-    // Prepare listing details for output
-    const listingDetails = newListings.map(listing => 
-      `Title: ${listing.title}\nURL: ${listing.itemWebUrl}`
-    ).join('\n\n');
-
-    // Update processed listing IDs if new listings found
-    if (newListings.length > 0) {
-      await this.updateProcessedListingIds(
-        newListings.map(listing => listing.itemId)
+      // Filter out previously processed listings
+      const newListings = currentListings.filter(
+        listing => !this.processedListingIds.includes(listing.itemId)
       );
-    }
 
-    console.log(`Processed ${newListings.length} new listings`);
-    
-    return { 
-      newListings, 
-      listingDetails: listingDetails || 'No new listings found' 
-    };
+      // Prepare listing details for output
+      const listingDetails = newListings.map(listing => 
+        `Title: ${listing.title}\nURL: ${listing.itemWebUrl}`
+      ).join('\n\n');
+
+      // Update processed listing IDs if new listings found
+      if (newListings.length > 0) {
+        await this.updateProcessedListingIds(
+          newListings.map(listing => listing.itemId)
+        );
+      }
+
+      console.log(`Processed ${newListings.length} new listings`);
+      
+      return { 
+        newListings, 
+        listingDetails: listingDetails || 'No new listings found' 
+      };
+    } catch (error) {
+      console.error('Error in finding new listings:', error);
+      return { newListings: [], listingDetails: '' };
+    }
   }
 }
 

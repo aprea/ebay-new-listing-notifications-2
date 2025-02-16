@@ -2,8 +2,8 @@ name: eBay New Listings Tracker
 
 on:
   schedule:
-    # Runs every 5 minutes from 6 PM to midnight AEDT
-    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 6-14 * * *'
+    # Runs every 5 minutes from 1:00 PM to 1:00 AM AEDT
+    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 2-14 * * *'
   workflow_dispatch:
 
 jobs:

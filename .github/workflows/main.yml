@@ -31,7 +31,6 @@ jobs:
         EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
         EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
         SELLER_USERNAME: ${{ secrets.SELLER_USERNAME }}
-        PROCESSED_LISTING_IDS: ${{ secrets.PROCESSED_LISTING_IDS }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         node index.js

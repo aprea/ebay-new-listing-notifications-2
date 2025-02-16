@@ -1,7 +1,6 @@
 import EbayAuthToken from 'ebay-oauth-nodejs-client';
 import axios from 'axios';
 import { writeFileSync } from 'fs';
-import { Octokit } from '@octokit/rest';
 
 class eBayListingTracker {
   constructor() {
@@ -11,17 +10,7 @@ class eBayListingTracker {
       clientSecret: process.env.EBAY_CLIENT_SECRET
     });
 
-    // Initialize other properties
     this.sellerUsername = process.env.SELLER_USERNAME;
-    this.processedListingIds = this.getProcessedListingIds();
-    this.octokit = new Octokit({ auth: process.env.GH_TOKEN });
-    this.owner = process.env.GITHUB_REPOSITORY.split('/')[0];
-    this.repo = process.env.GITHUB_REPOSITORY.split('/')[1];
-  }
-
-  getProcessedListingIds() {
-    const processedIds = process.env.PROCESSED_LISTING_IDS || '';
-    return processedIds.split(',').filter(id => id.trim() !== '');
   }
 
   async getApplicationToken() {
@@ -43,7 +32,7 @@ class eBayListingTracker {
           'X-EBAY-C-MARKETPLACE-ID': 'EBAY_AU',
         },
         params: {
-          q: 'pokemon',
+          q: 'pokemon booster box',
           filter: `sellers:{${process.env.SELLER_USERNAME}}`,
           limit: 50,
           sort: 'newlyListed'
@@ -54,25 +43,6 @@ class eBayListingTracker {
     } catch (error) {
       console.error('Error fetching eBay listings:', error.message);
       return [];
-    }
-  }
-
-  async updateProcessedListingIds(newListingIds) {
-    const updatedIds = Array.from(new Set([
-      ...this.processedListingIds, 
-      ...newListingIds
-    ])).slice(-500).join(',');
-
-    try {
-      await this.octokit.actions.updateRepoSecret({
-        owner: this.owner,
-        repo: this.repo,
-        secret_name: 'PROCESSED_LISTING_IDS',
-        encrypted_value: Buffer.from(updatedIds).toString('base64')
-      });
-      console.log('Successfully updated processed listing IDs');
-    } catch (error) {
-      console.error('Error updating processed listing IDs:', error.message);
     }
   }
 
@@ -88,29 +58,17 @@ class eBayListingTracker {
       const applicationToken = await this.getApplicationToken();
 
       // Fetch current listings
-      const currentListings = await this.getEbayListings(applicationToken);
-
-      // Filter out previously processed listings
-      const newListings = currentListings.filter(
-        listing => !this.processedListingIds.includes(listing.itemId)
-      );
+      const listings = await this.getEbayListings(applicationToken);
 
       // Prepare listing details for output
-      const listingDetails = newListings.map(listing => 
+      const listingDetails = listings.map(listing => 
         `Title: ${listing.title}\nURL: ${listing.itemWebUrl}`
       ).join('\n\n');
 
-      // Update processed listing IDs if new listings found
-      if (newListings.length > 0) {
-        await this.updateProcessedListingIds(
-          newListings.map(listing => listing.itemId)
-        );
-      }
-
-      console.log(`Processed ${newListings.length} new listings`);
+      console.log(`Processed ${listings.length} new listings`);
       
       return { 
-        newListings, 
+        newListings: listings, 
         listingDetails: listingDetails || 'No new listings found' 
       };
     } catch (error) {

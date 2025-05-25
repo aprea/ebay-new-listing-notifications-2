@@ -32,7 +32,7 @@ class eBayListingTracker {
           'X-EBAY-C-MARKETPLACE-ID': 'EBAY_AU',
         },
         params: {
-          q: 'pokemon booster box',
+          q: 'pokemon',
           filter: `sellers:{${process.env.SELLER_USERNAME}}`,
           limit: 50,
           sort: 'newlyListed'
